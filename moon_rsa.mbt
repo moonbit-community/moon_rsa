@@ -284,3 +284,290 @@ pub fn generateKeyPairs(
     }
   }
 }
+
+///|
+/// Hash algorithm for PSS encoding
+pub(all) enum HashAlgorithm {
+  SHA1
+  SHA224
+  SHA256
+}
+
+///|
+/// PSS encoding parameters according to RFC 8017
+pub struct PssParams {
+  hashAlg : HashAlgorithm
+  mgf : HashAlgorithm
+  saltLen : Int
+}
+
+///|
+/// Default PSS parameters for different hash algorithms
+pub fn PssParams::default(hashAlg : HashAlgorithm) -> PssParams {
+  match hashAlg {
+    HashAlgorithm::SHA1 =>
+      PssParams::{
+        hashAlg: HashAlgorithm::SHA1,
+        mgf: HashAlgorithm::SHA1,
+        saltLen: 20,
+      }
+    HashAlgorithm::SHA224 =>
+      PssParams::{
+        hashAlg: HashAlgorithm::SHA224,
+        mgf: HashAlgorithm::SHA224,
+        saltLen: 28,
+      }
+    HashAlgorithm::SHA256 =>
+      PssParams::{
+        hashAlg: HashAlgorithm::SHA256,
+        mgf: HashAlgorithm::SHA256,
+        saltLen: 32,
+      }
+  }
+}
+
+///|
+/// Get hash output length in bytes
+pub fn HashAlgorithm::outputLen(self : HashAlgorithm) -> Int {
+  match self {
+    HashAlgorithm::SHA1 => 20
+    HashAlgorithm::SHA224 => 28
+    HashAlgorithm::SHA256 => 32
+  }
+}
+
+///|
+/// Hash a message using the specified algorithm
+fn hashMessage(msg : Bytes, alg : HashAlgorithm) -> Bytes {
+  match alg {
+    HashAlgorithm::SHA1 => @bytes.of(@crypto.sha1(msg))
+    HashAlgorithm::SHA224 => @bytes.of(@crypto.sha224(msg))
+    HashAlgorithm::SHA256 => @bytes.of(@crypto.sha256(msg))
+  }
+}
+
+///|
+/// MGF1 (Mask Generation Function 1) according to RFC 8017 B.2.1
+fn mgf1(mgfSeed : Bytes, maskLen : Int, hashAlg : HashAlgorithm) -> Bytes raise Error {
+  let hLen = hashAlg.outputLen()
+  if maskLen > ((2^32) - 1) * hLen {
+    raise ArgumentError("maskLen too large for MGF1")
+  }
+  
+  let mut t = Bytes::new(0)
+  let mut counter = 0
+  
+  while t.length() < maskLen {
+    let c = counter.to_be_bytes()
+    let t_i = hashMessage(mgfSeed + c, hashAlg)
+    t = t + t_i
+    counter = counter + 1
+  }
+  
+  Bytes::from_iter(t[0:maskLen].iter())
+}
+
+///|
+/// EMSA-PSS-ENCODE according to RFC 8017 9.1.1
+fn emsaPssEncode(
+  mHash : Bytes,
+  emBits : Int,
+  params : PssParams,
+) -> Bytes raise Error {
+  let hLen = params.hashAlg.outputLen()
+  let sLen = params.saltLen
+  if mHash.length() != hLen {
+    raise ArgumentError("mHash length must equal hash output length")
+  }
+  if emBits < hLen + sLen + 2 {
+    raise ArgumentError("emBits too small")
+  }
+  let emLen = (emBits + 7) / 8
+
+  // Generate random salt
+  let r = @random.Rand::chacha8(seed=getRandom32BytesSeed())
+  let saltBigInt = r.bigint(sLen * 8)
+  let salt = saltBigInt.to_octets()
+
+  // M' = 0x0000000000000000 || mHash || salt
+  let m_prime = Bytes::new(8) + mHash + salt
+
+  // H = Hash(M')
+  let h = hashMessage(m_prime, params.hashAlg)
+
+  // Generate DB
+  let psLen = emLen - sLen - hLen - 1
+  let db = Bytes::new(psLen) + @bytes.from_array([b'\x01']) + salt
+
+  // Generate dbMask
+  let dbMask = mgf1(h, emLen - hLen - 1, params.mgf)
+
+  // maskedDB = DB XOR dbMask
+  let mut maskedDB = Bytes::new(0)
+  for i = 0; i < db.length(); i = i + 1 {
+    maskedDB = maskedDB + @bytes.from_array([b'\x00' + (db[i] ^ dbMask[i])])
+  }
+
+  // Set the leftmost 8emLen - emBits bits of the leftmost octet in maskedDB to zero
+  let leftmostBits = (8 * emLen - emBits) % 8
+  if leftmostBits > 0 {
+    let mask = b'\xff' >> leftmostBits
+    let firstByte = b'\x00' + (maskedDB[0] & mask)
+    maskedDB = @bytes.from_array([firstByte]) + @bytes.from_iter(maskedDB[1:maskedDB.length()].iter())
+  }
+
+  // EM = maskedDB || H || 0xbc
+  maskedDB + h + @bytes.from_array([b'\xbc'])
+}
+
+///|
+/// EMSA-PSS-VERIFY according to RFC 8017 9.1.2
+fn emsaPssVerify(
+  mHash : Bytes,
+  em : Bytes,
+  emBits : Int,
+  params : PssParams,
+) -> Bool raise Error {
+  let hLen = params.hashAlg.outputLen()
+  let sLen = params.saltLen
+
+  if mHash.length() != hLen {
+    raise ArgumentError("mHash length must equal hash output length")
+  }
+
+  if emBits < hLen + sLen + 2 {
+    return false
+  }
+
+  let emLen = (emBits + 7) / 8
+
+  if em.length() != emLen {
+    return false
+  }
+
+  // Check rightmost octet
+  if em[em.length() - 1] != 0xbc {
+    return false
+  }
+
+  // Extract maskedDB and H
+  let maskedDB = Bytes::from_iter(em[0:emLen - hLen - 1].iter())
+  let h = Bytes::from_iter(em[emLen - hLen - 1:emLen - 1].iter())
+
+  // Check that the leftmost 8emLen - emBits bits of the leftmost octet in maskedDB are zero
+  let leftmostBits = (8 * emLen - emBits) % 8
+  if leftmostBits > 0 {
+    let mask = b'\xff' << (8 - leftmostBits)
+    if (maskedDB[0] & mask) != 0 {
+      return false
+    }
+  }
+
+  // Generate dbMask
+  let dbMask = mgf1(h, emLen - hLen - 1, params.mgf)
+
+  // DB = maskedDB XOR dbMask
+  let mut db = Bytes::new(0)
+  for i = 0; i < maskedDB.length(); i = i + 1 {
+    db = db + @bytes.from_array([b'\x00' + (maskedDB[i] ^ dbMask[i])])
+  }
+
+  // Check that the leftmost 8emLen - emBits bits of DB are zero
+  let psLen = emLen - sLen - hLen - 1
+  for i = 0; i < psLen; i = i + 1 {
+    if db[i] != 0 {
+      return false
+    }
+  }
+
+  if db[psLen] != 0x01 {
+    return false
+  }
+
+  // Extract salt
+  let salt = Bytes::from_iter(db[psLen + 1:db.length()].iter())
+
+  // M' = 0x0000000000000000 || mHash || salt
+  let m_prime = Bytes::new(8) + mHash + salt
+
+  // H' = Hash(M')
+  let h_prime = hashMessage(m_prime, params.hashAlg)
+
+  // Compare H and H'
+  h == h_prime
+}
+
+///|
+/// RSASSA-PSS-SIGN according to RFC 8017 8.1.1
+pub fn rsassaPssSign(
+  m : Bytes,
+  privateKey : RsaPrivateKey,
+  params : PssParams,
+) -> BigInt raise Error {
+  let k = (privateKey.modulus.bit_length() + 7) / 8
+  let emBits = privateKey.modulus.bit_length() - 1
+
+  // Hash the message
+  let mHash = hashMessage(m, params.hashAlg)
+
+  // Encode the message
+  let em = emsaPssEncode(mHash, emBits, params)
+
+  // Convert EM to integer
+  let m_int = BigInt::from_octets(em)
+
+  // Apply RSASP1
+  let s = rsasp1(m_int, privateKey)
+  s
+}
+
+///|
+/// RSASSA-PSS-VERIFY according to RFC 8017 8.2.2
+pub fn rsassaPssVerify(
+  m : Bytes,
+  s : BigInt,
+  publicKey : RsaPublicKey,
+  params : PssParams,
+) -> Bool raise Error {
+  let k = (publicKey.modulus.bit_length() + 7) / 8
+  let emBits = publicKey.modulus.bit_length() - 1
+
+  // Apply RSAVP1
+  let m_int = rsavp1(s, publicKey)
+
+  // Convert to bytes
+  let em = m_int.to_octets()
+
+  // Hash the message
+  let mHash = hashMessage(m, params.hashAlg)
+
+  // Verify the encoding
+  emsaPssVerify(mHash, em, emBits, params)
+}
+
+///|
+/// RSASP1 according to RFC 8017 5.2.1
+fn rsasp1(m : BigInt, privateKey : RsaPrivateKey) -> BigInt raise Error {
+  if m < 0 || m >= privateKey.modulus {
+    raise ArgumentError("message representative out of range")
+  }
+
+  // Use Chinese Remainder Theorem for efficiency
+  let s1 = m.pow(privateKey.exponent1, modulus=privateKey.prime1)
+  let s2 = m.pow(privateKey.exponent2, modulus=privateKey.prime2)
+
+  // s = s2 + q * ((s1 - s2) * coefficient mod p)
+  let h = (s1 - s2) * privateKey.coefficient % privateKey.prime1
+  let s = s2 + privateKey.prime2 * h
+  s
+}
+
+///|
+/// RSAVP1 according to RFC 8017 5.2.2
+fn rsavp1(s : BigInt, publicKey : RsaPublicKey) -> BigInt raise Error {
+  if s < 0 || s >= publicKey.modulus {
+    raise ArgumentError("signature representative out of range")
+  }
+  s.pow(publicKey.publicExponent, modulus=publicKey.modulus)
+}
+
