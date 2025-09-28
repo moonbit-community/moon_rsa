@@ -1,25 +1,26 @@
-# Rutubet/moon_rsa
+# moon_rsa
 
 A Moonbit implementation of RSA cryptographic algorithm, under development.
+
+## Security Disclaimer ⚠️
+
+This implementation of RSA cryptographic algorithm is provided **without any security endorsement** or professional certification. The moon_rsa project should be considered:
+- An educational reference implementation
+- Experimental cryptography software
+- Not reviewed by third-party security experts
 
 ## Features
 
 - **Key Generation** (Implemented)
   - Generate RSA public/private key pairs
-  - Customizable key length (2048/4096-bit)
-
-- **Planned Features**
-  - RSA encryption/decryption
-  - Digital signature generation & verification
-  - PKCS#1 v2.2 compliant padding schemes
-  - X.509 certificate support
+  - Customizable key length (2048-bits minimum)
 
 ## Roadmap
 
-- Implement core encryption/decryption
-- Add PSS/PKCS1-v1_5 signing schemes
-- Support X.509 certificate chain validation
-- Performance optimization for WebAssembly targets
+- **Planned Features**
+  - Digital signature(RSASSA-PSS) generation & verification
+  - RSA encryption/decryption
+  - Implement all the requirement in FIPS 186.5
 
 ## Contributing
 
