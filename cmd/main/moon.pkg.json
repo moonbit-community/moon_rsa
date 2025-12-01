@@ -1,9 +1,0 @@
-{
-  "is-main": true,
-  "import": [
-    {
-      "path": "Rutubet/moon_rsa",
-      "alias": "lib"
-    }
-  ]
-}
