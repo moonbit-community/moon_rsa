@@ -46,7 +46,7 @@ test "rsassa_pss_verify_valid_signature" {
 test "rsassa_pss_verify_invalid_signatures" {
   // 生成两个不同的RSA密钥对
   let (publicKey1, privateKey1) = @rsa.generate_key_pairs(2048, 65537)
-  let (publicKey2, privateKey2) = @rsa.generate_key_pairs(2048, 65537)
+  let (publicKey2, _) = @rsa.generate_key_pairs(2048, 65537)
 
   // 准备测试消息
   let original_message = Bytes::from_array([b'h', b'e', b'l', b'l', b'o'])

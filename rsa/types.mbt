@@ -64,3 +64,14 @@ pub struct RsaPrivateKey {
   coefficient : BigInt
   otherPrimeInfos : FixedArray[OtherPrimeInfo]
 }
+
+///|
+fn _suppress_unused_warnings() -> Unit {
+  let _ = RsaVersion::MULTI
+  let _ = OtherPrimeInfo::{
+    prime: BigInt::from_int(0),
+    exponent: BigInt::from_int(0),
+    coefficient: BigInt::from_int(0),
+  }
+  ()
+}

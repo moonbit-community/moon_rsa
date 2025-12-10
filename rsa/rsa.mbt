@@ -230,7 +230,8 @@ fn xor_bytes(a : Bytes, b : Bytes) -> Bytes raise Error {
   Bytes::from_array(arr)
 }
 
-///| MGF1 mask generation function according to RFC 8017
+///|
+/// MGF1 mask generation function according to RFC 8017
 fn mgf1(
   seed : Bytes,
   mask_len : Int64,
@@ -252,12 +253,12 @@ fn mgf1(
   for counter = 0L; counter < count && cur_len < mask_len; counter = counter + 1 {
     // Convert counter to 4-byte octet string (I2OSP)
     let c = BigInt::from_int64(counter).to_octets(length=4)
-    
+
     // Compute hash of (seed || c) and append to output buffer
     let hash_input = seed + c
     let h = hash(hash_input)
     let mut right = h_len.to_int()
-    if (cur_len + h_len) > mask_len {
+    if cur_len + h_len > mask_len {
       right = (mask_len - cur_len).to_int()
     }
     t = t + Bytes::from_array(h[:right])
@@ -491,11 +492,11 @@ pub fn rsassa_pss_verify(
     }
 
     // Step 12: Compute M' = 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 || H || salt
-    let m_prime = Bytes::new(8) + Bytes::from_fixedarray(h) + extracted_salt
+    let m_prime = Bytes::new(8) + Bytes::from_array(h) + extracted_salt
     let computed_h_prime = hash(m_prime)
 
     // Step 13: Compare H' from the signature with the computed H'
-    Bytes::from_fixedarray(computed_h_prime) == h_prime_part
+    Bytes::from_array(computed_h_prime) == h_prime_part
   } catch {
     // If any error occurs during verification, return false
     _ => false
