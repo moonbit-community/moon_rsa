@@ -1,0 +1,54 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Rutubet/moon_rsa/rsa"
+
+import(
+  "moonbitlang/core/bigint"
+)
+
+// Values
+pub fn generate_key_pairs(Int, @bigint.BigInt) -> (RsaPublicKey, RsaPrivateKey) raise
+
+pub fn rsassa_pss_sign(RsaPrivateKey, Bytes) -> Bytes raise
+
+pub fn rsassa_pss_verify(RsaPublicKey, Bytes, Bytes) -> Bool
+
+// Errors
+pub suberror ArgumentError String
+
+pub suberror FailedFindPrimeError String
+
+// Types and methods
+pub struct OtherPrimeInfo {
+  prime : @bigint.BigInt
+  exponent : @bigint.BigInt
+  coefficient : @bigint.BigInt
+}
+
+pub struct RsaPrivateKey {
+  version : RsaVersion
+  modulus : @bigint.BigInt
+  publicExponent : @bigint.BigInt
+  privateExponent : @bigint.BigInt
+  prime1 : @bigint.BigInt
+  prime2 : @bigint.BigInt
+  exponent1 : @bigint.BigInt
+  exponent2 : @bigint.BigInt
+  coefficient : @bigint.BigInt
+  otherPrimeInfos : FixedArray[OtherPrimeInfo]
+}
+
+pub struct RsaPublicKey {
+  modulus : @bigint.BigInt
+  publicExponent : @bigint.BigInt
+}
+
+pub enum RsaVersion {
+  TWO_PRIME
+  MULTI
+}
+pub fn RsaVersion::get_value(Self) -> Int
+
+// Type aliases
+
+// Traits
+
