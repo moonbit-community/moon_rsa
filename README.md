@@ -14,13 +14,13 @@ This implementation of RSA cryptographic algorithm is provided **without any sec
 - **Key Generation** (Implemented)
   - Generate RSA public/private key pairs
   - Customizable key length (2048-bits minimum)
+  - Digital signature(RSASSA-PSS) generation & verification
 
 ## Roadmap
 
 - **Planned Features**
-  - Digital signature(RSASSA-PSS) generation & verification
   - RSA encryption/decryption
-  - Implement all the requirement in FIPS 186.5
+  - Implement all the requirements in FIPS 186.5
 
 ## Contributing
 

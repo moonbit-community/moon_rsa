@@ -7,62 +7,62 @@ test "generate_key_pairs" {
 
 ///|
 test "rsassa_pss_sign" {
-  // 生成RSA密钥对
+  // Generate RSA key pair
   let (_, privateKey) = @rsa.generate_key_pairs(2048, 65537)
 
-  // 准备测试消息
+  // Prepare test message
   let message = Bytes::from_array([b'h', b'e', b'l', b'l', b'o'])
 
-  // 生成签名
+  // Generate signature
   let signature = @rsa.rsassa_pss_sign(privateKey, message)
 
-  // 验证签名长度是否与模数长度一致
+  // Verify signature length matches modulus length
   let modulus_len = (privateKey.modulus.bit_length() + 7) / 8
   inspect(signature.length(), content=modulus_len.to_string())
 
-  // 验证签名不为空
+  // Verify signature is not empty
   inspect(signature.length() > 0, content="true")
 }
 
 ///|
 test "rsassa_pss_verify_valid_signature" {
-  // 生成RSA密钥对
+  // Generate RSA key pair
   let (publicKey, privateKey) = @rsa.generate_key_pairs(2048, 65537)
 
-  // 准备测试消息
+  // Prepare test message
   let message = Bytes::from_array([b'h', b'e', b'l', b'l', b'o'])
 
-  // 生成签名
+  // Generate signature
   let signature = @rsa.rsassa_pss_sign(privateKey, message)
 
-  // 验证签名
+  // Verify signature
   let is_valid = @rsa.rsassa_pss_verify(publicKey, message, signature)
 
-  // 确认验证通过
+  // Confirm verification passes
   inspect(is_valid, content="true")
 }
 
 ///|
 test "rsassa_pss_verify_invalid_signatures" {
-  // 生成两个不同的RSA密钥对
+  // Generate two different RSA key pairs
   let (publicKey1, privateKey1) = @rsa.generate_key_pairs(2048, 65537)
-  let (publicKey2, privateKey2) = @rsa.generate_key_pairs(2048, 65537)
+  let (publicKey2, _) = @rsa.generate_key_pairs(2048, 65537)
 
-  // 准备测试消息
+  // Prepare test messages
   let original_message = Bytes::from_array([b'h', b'e', b'l', b'l', b'o'])
   let modified_message = Bytes::from_array([b'h', b'e', b'l', b'l', b'o', b'!'])
 
-  // 生成签名
+  // Generate signature
   let original_signature = @rsa.rsassa_pss_sign(privateKey1, original_message)
 
-  // 测试1: 验证篡改的消息 - 应该失败
+  // Test 1: Verify tampered message - should fail
   let invalid1 = @rsa.rsassa_pss_verify(
     publicKey1, modified_message, original_signature,
   )
   inspect(invalid1, content="false")
 
-  // 测试2: 验证篡改的签名 - 应该失败
-  // 通过修改签名的第一个字节来篡改签名
+  // Test 2: Verify tampered signature - should fail
+  // Tamper signature by modifying first byte
   if original_signature.length() > 0 {
     let mut corrupted_signature = Bytes::from_array(
       original_signature.to_array(),
@@ -76,7 +76,7 @@ test "rsassa_pss_verify_invalid_signatures" {
     inspect(invalid2, content="false")
   }
 
-  // 测试3: 使用错误的公钥 - 应该失败
+  // Test 3: Use wrong public key - should fail
   let invalid3 = @rsa.rsassa_pss_verify(
     publicKey2, original_message, original_signature,
   )

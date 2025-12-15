@@ -491,11 +491,11 @@ pub fn rsassa_pss_verify(
     }
 
     // Step 12: Compute M' = 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 || H || salt
-    let m_prime = Bytes::new(8) + Bytes::from_fixedarray(h) + extracted_salt
+    let m_prime = Bytes::new(8) + Bytes::from_array(h) + extracted_salt
     let computed_h_prime = hash(m_prime)
 
     // Step 13: Compare H' from the signature with the computed H'
-    Bytes::from_fixedarray(computed_h_prime) == h_prime_part
+    Bytes::from_array(computed_h_prime) == h_prime_part
   } catch {
     // If any error occurs during verification, return false
     _ => false
