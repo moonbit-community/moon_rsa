@@ -176,7 +176,7 @@ test "rsaes_oaep_encrypt_decrypt_large_message" {
 ///|
 test "rsaes_oaep_decrypt_with_wrong_key" {
   // Generate two different RSA key pairs
-  let (publicKey1, privateKey1) = @rsa.generate_key_pairs(2048, 65537)
+  let (publicKey1, _) = @rsa.generate_key_pairs(2048, 65537)
   let (_, privateKey2) = @rsa.generate_key_pairs(2048, 65537)
 
   // Prepare test message
