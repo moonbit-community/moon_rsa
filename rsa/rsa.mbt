@@ -540,7 +540,10 @@ pub fn rsaes_oaep_encrypt(
   let ps = Bytes::new(ps_len)
 
   // Step 1d: Concatenate l_hash, PS, 0x01, and message to form data block DB
-  let db = Bytes::from_array(l_hash) + ps + Bytes::from_array([b'\x01']) + message
+  let db = Bytes::from_array(l_hash) +
+    ps +
+    Bytes::from_array([b'\x01']) +
+    message
 
   // Step 1e: Generate random seed of length h_len
   let r = @random.Rand::new()
@@ -650,7 +653,6 @@ pub fn rsaes_oaep_decrypt(
     }
     i = i + 1
   }
-
   if !found {
     raise ArgumentError("Decryption error: no 0x01 separator found")
   }

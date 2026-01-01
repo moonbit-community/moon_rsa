@@ -89,7 +89,9 @@ test "rsaes_oaep_encrypt_decrypt" {
   let (publicKey, privateKey) = @rsa.generate_key_pairs(2048, 65537)
 
   // Prepare test message
-  let message = Bytes::from_array([b'H', b'e', b'l', b'l', b'o', b' ', b'W', b'o', b'r', b'l', b'd'])
+  let message = Bytes::from_array([
+    b'H', b'e', b'l', b'l', b'o', b' ', b'W', b'o', b'r', b'l', b'd',
+  ])
 
   // Encrypt message with empty label
   let label = Bytes::new(0)
@@ -112,7 +114,9 @@ test "rsaes_oaep_encrypt_decrypt_with_label" {
   let (publicKey, privateKey) = @rsa.generate_key_pairs(2048, 65537)
 
   // Prepare test message
-  let message = Bytes::from_array([b'T', b'e', b's', b't', b' ', b'M', b'e', b's', b's', b'a', b'g', b'e'])
+  let message = Bytes::from_array([
+    b'T', b'e', b's', b't', b' ', b'M', b'e', b's', b's', b'a', b'g', b'e',
+  ])
 
   // Prepare label
   let label = Bytes::from_array([b'M', b'y', b'L', b'a', b'b', b'e', b'l'])
@@ -195,5 +199,3 @@ test "rsaes_oaep_decrypt_with_wrong_key" {
   }
   inspect(result, content="true")
 }
-
-
