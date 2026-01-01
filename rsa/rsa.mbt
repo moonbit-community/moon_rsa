@@ -342,7 +342,7 @@ pub fn rsassa_pss_sign(k : RsaPrivateKey, message : Bytes) -> Bytes raise Error 
 
 ///|
 /// RSAEP public-key encryption primitive according to RFC 8017
-fn rsaeppub(n : BigInt, e : BigInt, m : BigInt) -> BigInt raise Error {
+fn rsaep_pub(n : BigInt, e : BigInt, m : BigInt) -> BigInt raise Error {
   if m < 0 || m >= n {
     raise ArgumentError("Message representative out of range")
   }
@@ -380,7 +380,7 @@ pub fn rsassa_pss_verify(
     let s = BigInt::from_octets(signature)
 
     // Step 3: Apply RSAEP to recover the encoded message EM
-    let m = rsaeppub(key.modulus, key.publicExponent, s)
+    let m = rsaep_pub(key.modulus, key.publicExponent, s)
 
     // Step 4: Convert m to an octet string EM of length modulus_len
     let em = m.to_octets(length=modulus_len)
@@ -501,4 +501,167 @@ pub fn rsassa_pss_verify(
     // If any error occurs during verification, return false
     _ => false
   }
+}
+
+///|
+/// RSAES-OAEP-ENCRYPT according to RFC 8017
+/// 
+/// Parameters:
+/// * `key` : The RSA public key
+/// * `message` : The message to be encrypted
+/// * `label` : Optional label (default is empty string)
+/// 
+/// Returns the encrypted message (ciphertext)
+pub fn rsaes_oaep_encrypt(
+  key : RsaPublicKey,
+  message : Bytes,
+  label : Bytes,
+) -> Bytes raise Error {
+  // Use SHA-256 as the default hash function
+  let hash = @crypto.sha256
+
+  // Get the length of the modulus in bytes
+  let modulus_len = (key.modulus.bit_length() + 7) / 8
+
+  // Get hash length (32 bytes for SHA-256)
+  let h_len = hash(Bytes::new(0)).length()
+
+  // Step 1a: Check message length
+  let m_len = message.length()
+  if m_len > modulus_len - 2 * h_len - 2 {
+    raise ArgumentError("Message too long for RSAES-OAEP-ENCRYPT")
+  }
+
+  // Step 1b: Generate hash of label (empty label by default)
+  let l_hash = hash(label)
+
+  // Step 1c: Generate padding string PS consisting of modulus_len - m_len - 2*h_len - 2 zeros
+  let ps_len = modulus_len - m_len - 2 * h_len - 2
+  let ps = Bytes::new(ps_len)
+
+  // Step 1d: Concatenate l_hash, PS, 0x01, and message to form data block DB
+  let db = Bytes::from_array(l_hash) + ps + Bytes::from_array([b'\x01']) + message
+
+  // Step 1e: Generate random seed of length h_len
+  let r = @random.Rand::new()
+  let seed = r.bigint(h_len * 8).to_octets()
+
+  // Step 1f: Apply MGF1 to seed to get db_mask of length modulus_len - h_len - 1
+  let db_mask = mgf1(seed, (modulus_len - h_len - 1).to_int64(), hash)
+
+  // Step 1g: XOR db_mask with DB to get masked_db
+  let masked_db = xor_bytes(db, db_mask)
+
+  // Step 1h: Apply MGF1 to masked_db to get seed_mask of length h_len
+  let seed_mask = mgf1(masked_db, h_len.to_int64(), hash)
+
+  // Step 1i: XOR seed_mask with seed to get masked_seed
+  let masked_seed = xor_bytes(seed, seed_mask)
+
+  // Step 1j: Concatenate 0x00, masked_seed, and masked_db to form encoded message EM
+  let em = Bytes::from_array([b'\x00']) + masked_seed + masked_db
+
+  // Step 2: Convert EM to integer m
+  let m = BigInt::from_octets(em)
+
+  // Step 3: Apply RSAEP to get ciphertext representative c
+  let c = rsaep_pub(key.modulus, key.publicExponent, m)
+
+  // Step 4: Convert c to octet string C
+  c.to_octets(length=modulus_len)
+}
+
+///|
+/// RSAES-OAEP-DECRYPT according to RFC 8017
+/// 
+/// Parameters:
+/// * `key` : The RSA private key
+/// * `ciphertext` : The ciphertext to be decrypted
+/// * `label` : Optional label (default is empty string)
+/// 
+/// Returns the decrypted message
+pub fn rsaes_oaep_decrypt(
+  key : RsaPrivateKey,
+  ciphertext : Bytes,
+  label : Bytes,
+) -> Bytes raise Error {
+  // Use SHA-256 as the default hash function
+  let hash = @crypto.sha256
+
+  // Get the length of the modulus in bytes
+  let modulus_len = (key.modulus.bit_length() + 7) / 8
+
+  // Get hash length (32 bytes for SHA-256)
+  let h_len = hash(Bytes::new(0)).length()
+
+  // Step 1: Check ciphertext length
+  if ciphertext.length() != modulus_len {
+    raise ArgumentError("Decryption error: ciphertext length incorrect")
+  }
+
+  // Step 2: Convert ciphertext to integer c
+  let c = BigInt::from_octets(ciphertext)
+
+  // Step 3: Apply RSADP to recover the encoded message EM
+  let m = rsasp1(key.modulus, key.privateExponent, c)
+
+  // Step 4: Convert m to octet string EM of length modulus_len
+  let em = m.to_octets(length=modulus_len)
+
+  // Step 5: Check that EM starts with 0x00
+  if em.length() < 1 || em.at(0) != b'\x00' {
+    raise ArgumentError("Decryption error: EM does not start with 0x00")
+  }
+
+  // Step 5a: Split EM into masked_seed and masked_db
+  // EM = 0x00 || masked_seed || masked_db
+  let masked_seed = em[1:h_len + 1].to_bytes()
+  let masked_db = em[h_len + 1:].to_bytes()
+
+  // Step 5b: Apply MGF1 to masked_db to get seed_mask of length h_len
+  let seed_mask = mgf1(masked_db, h_len.to_int64(), hash)
+
+  // Step 5c: XOR seed_mask with masked_seed to recover seed
+  let seed = xor_bytes(masked_seed, seed_mask)
+
+  // Step 5d: Apply MGF1 to seed to get db_mask of length modulus_len - h_len - 1
+  let db_mask = mgf1(seed, (modulus_len - h_len - 1).to_int64(), hash)
+
+  // Step 5e: XOR db_mask with masked_db to recover DB
+  let db = xor_bytes(masked_db, db_mask)
+
+  // Step 5f: Generate hash of label (empty label by default)
+  let l_hash = hash(label)
+
+  // Step 5g: Check that the leftmost h_len octets of DB equal l_hash
+  let db_l_hash = db[0:h_len].to_bytes()
+  if db_l_hash != Bytes::from_array(l_hash) {
+    raise ArgumentError("Decryption error: label hash mismatch")
+  }
+
+  // Step 5h: Find the index of the first 0x01 byte after the padding string
+  let mut i = h_len
+  let mut found = false
+  while i < db.length() && !found {
+    if db.at(i) == b'\x01' {
+      found = true
+    } else if db.at(i) != b'\x00' {
+      raise ArgumentError("Decryption error: invalid padding")
+    }
+    i = i + 1
+  }
+
+  if !found {
+    raise ArgumentError("Decryption error: no 0x01 separator found")
+  }
+
+  // Step 5i: Extract the message M
+  let message_start = i
+  if message_start >= db.length() {
+    raise ArgumentError("Decryption error: message start out of bounds")
+  }
+  let message = db[message_start:].to_bytes()
+
+  // Step 6: Return the message
+  message
 }

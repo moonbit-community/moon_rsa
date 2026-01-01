@@ -8,6 +8,10 @@ import(
 // Values
 pub fn generate_key_pairs(Int, @bigint.BigInt) -> (RsaPublicKey, RsaPrivateKey) raise
 
+pub fn rsaes_oaep_decrypt(RsaPrivateKey, Bytes, Bytes) -> Bytes raise
+
+pub fn rsaes_oaep_encrypt(RsaPublicKey, Bytes, Bytes) -> Bytes raise
+
 pub fn rsassa_pss_sign(RsaPrivateKey, Bytes) -> Bytes raise
 
 pub fn rsassa_pss_verify(RsaPublicKey, Bytes, Bytes) -> Bool
