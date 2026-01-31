@@ -1,8 +1,12 @@
 ///|
-pub suberror ArgumentError String
+pub suberror ArgumentError {
+  ArgumentError(String)
+}
 
 ///|
-pub suberror FailedFindPrimeError String
+pub suberror FailedFindPrimeError {
+  FailedFindPrimeError(String)
+}
 
 ///|
 pub fn RsaVersion::get_value(self : RsaVersion) -> Int {
@@ -572,6 +576,240 @@ pub fn rsaes_oaep_encrypt(
 
   // Step 4: Convert c to octet string C
   c.to_octets(length=modulus_len)
+}
+
+///|
+/// Generate random non-zero bytes for PKCS#1 v1.5 padding
+fn generate_non_zero_random_bytes(len : Int) -> Bytes {
+  let r = @random.Rand::new()
+  let arr = FixedArray::make(len, b'\x00')
+  for i = 0; i < len; i = i + 1 {
+    // Generate random byte in range 1-255 (non-zero)
+    arr[i] = (r.uint() % 255 + 1).to_byte()
+  }
+  Bytes::from_array(arr)
+}
+
+///|
+/// RSAES-PKCS1-v1_5-ENCRYPT according to RFC 8017 Section 7.2.1
+///
+/// Parameters:
+/// * `key` : The RSA public key
+/// * `message` : The message to be encrypted
+///
+/// Returns the encrypted message (ciphertext)
+pub fn rsaes_pkcs1_v1_5_encrypt(
+  key : RsaPublicKey,
+  message : Bytes,
+) -> Bytes raise Error {
+  // Step 1: Get the length of the modulus in bytes
+  let k = (key.modulus.bit_length() + 7) / 8
+
+  // Step 2: Check message length
+  let m_len = message.length()
+  if m_len > k - 11 {
+    raise ArgumentError("Message too long for RSAES-PKCS1-v1_5")
+  }
+
+  // Step 3: Generate padding string PS of length k - mLen - 3
+  // PS consists of random non-zero bytes
+  let ps_len = k - m_len - 3
+  let ps = generate_non_zero_random_bytes(ps_len)
+
+  // Step 4: Form encoded message EM = 0x00 || 0x02 || PS || 0x00 || M
+  let em = Bytes::from_array([b'\x00', b'\x02']) +
+    ps +
+    Bytes::from_array([b'\x00']) +
+    message
+
+  // Step 5: Convert EM to integer m
+  let m = BigInt::from_octets(em)
+
+  // Step 6: Apply RSAEP to get ciphertext representative c
+  let c = rsaep_pub(key.modulus, key.publicExponent, m)
+
+  // Step 7: Convert c to ciphertext C of length k
+  c.to_octets(length=k)
+}
+
+///|
+/// RSAES-PKCS1-v1_5-DECRYPT according to RFC 8017 Section 7.2.2
+///
+/// Parameters:
+/// * `key` : The RSA private key
+/// * `ciphertext` : The ciphertext to be decrypted
+///
+/// Returns the decrypted message
+pub fn rsaes_pkcs1_v1_5_decrypt(
+  key : RsaPrivateKey,
+  ciphertext : Bytes,
+) -> Bytes raise Error {
+  // Step 1: Get the length of the modulus in bytes
+  let k = (key.modulus.bit_length() + 7) / 8
+
+  // Step 2: Check ciphertext length
+  if ciphertext.length() != k {
+    raise ArgumentError("Decryption error: ciphertext length incorrect")
+  }
+
+  // Step 3: Convert ciphertext to integer c
+  let c = BigInt::from_octets(ciphertext)
+
+  // Step 4: Apply RSADP to recover the encoded message
+  let m = rsasp1(key.modulus, key.privateExponent, c)
+
+  // Step 5: Convert m to encoded message EM of length k
+  let em = m.to_octets(length=k)
+
+  // Step 6: Verify EM format: EM = 0x00 || 0x02 || PS || 0x00 || M
+  if em.length() < 11 {
+    raise ArgumentError("Decryption error: invalid EM format")
+  }
+  if em.at(0) != b'\x00' || em.at(1) != b'\x02' {
+    raise ArgumentError("Decryption error: invalid EM format")
+  }
+
+  // Step 7: Find the separator 0x00 byte (must be at index >= 10 for PS >= 8)
+  let mut separator_index = -1
+  for i = 2; i < em.length(); i = i + 1 {
+    if em.at(i) == b'\x00' {
+      separator_index = i
+      break
+    }
+  }
+
+  // Step 8: Verify separator was found and PS length >= 8
+  if separator_index < 10 {
+    raise ArgumentError("Decryption error: invalid padding")
+  }
+
+  // Step 9: Verify all PS bytes are non-zero
+  for i = 2; i < separator_index; i = i + 1 {
+    if em.at(i) == b'\x00' {
+      raise ArgumentError("Decryption error: invalid padding")
+    }
+  }
+
+  // Step 10: Extract and return the message M
+  let message_start = separator_index + 1
+  if message_start >= em.length() {
+    // Empty message case
+    return Bytes::new(0)
+  }
+  em[message_start:].to_bytes()
+}
+
+///|
+/// DER-encoded DigestInfo prefix for SHA-256 according to RFC 8017 Section 9.2 Note 1
+/// DigestInfo ::= SEQUENCE { digestAlgorithm AlgorithmIdentifier, digest OCTET STRING }
+/// For SHA-256: 30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20
+fn sha256_digest_info_prefix() -> Bytes {
+  Bytes::from_array([
+    b'\x30', b'\x31', b'\x30', b'\x0d', b'\x06', b'\x09', b'\x60', b'\x86', b'\x48',
+    b'\x01', b'\x65', b'\x03', b'\x04', b'\x02', b'\x01', b'\x05', b'\x00', b'\x04',
+    b'\x20',
+  ])
+}
+
+///|
+/// EMSA-PKCS1-v1_5-ENCODE according to RFC 8017 Section 9.2
+///
+/// Parameters:
+/// * `message` : The message to be encoded
+/// * `em_len` : The intended length of the encoded message
+///
+/// Returns the encoded message EM
+fn emsa_pkcs1_v1_5_encode(message : Bytes, em_len : Int) -> Bytes raise Error {
+  // Step 1: Hash the message using SHA-256
+  let hash = @crypto.sha256
+  let h = hash(message)
+
+  // Step 2: Encode the DigestInfo value T
+  let t = sha256_digest_info_prefix() + Bytes::from_array(h)
+  let t_len = t.length()
+
+  // Step 3: Check that emLen >= tLen + 11
+  if em_len < t_len + 11 {
+    raise ArgumentError("Intended encoded message length too short")
+  }
+
+  // Step 4: Generate padding string PS of 0xFF bytes
+  let ps_len = em_len - t_len - 3
+  let ps_arr = FixedArray::make(ps_len, b'\xFF')
+  let ps = Bytes::from_array(ps_arr)
+
+  // Step 5: Form EM = 0x00 || 0x01 || PS || 0x00 || T
+  Bytes::from_array([b'\x00', b'\x01']) + ps + Bytes::from_array([b'\x00']) + t
+}
+
+///|
+/// RSASSA-PKCS1-v1_5-SIGN according to RFC 8017 Section 8.2.1
+///
+/// Parameters:
+/// * `key` : The RSA private key
+/// * `message` : The message to be signed
+///
+/// Returns the signature
+pub fn rsassa_pkcs1_v1_5_sign(
+  key : RsaPrivateKey,
+  message : Bytes,
+) -> Bytes raise Error {
+  // Step 1: Get the length of the modulus in bytes
+  let k = (key.modulus.bit_length() + 7) / 8
+
+  // Step 2: EMSA-PKCS1-v1_5 encoding
+  let em = emsa_pkcs1_v1_5_encode(message, k)
+
+  // Step 3: Convert EM to integer m
+  let m = BigInt::from_octets(em)
+
+  // Step 4: Apply RSASP1 to get signature representative s
+  let s = rsasp1(key.modulus, key.privateExponent, m)
+
+  // Step 5: Convert s to signature S of length k
+  s.to_octets(length=k)
+}
+
+///|
+/// RSASSA-PKCS1-v1_5-VERIFY according to RFC 8017 Section 8.2.2
+///
+/// Parameters:
+/// * `key` : The RSA public key
+/// * `message` : The message to be verified
+/// * `signature` : The signature to be verified
+///
+/// Returns true if the signature is valid, false otherwise
+pub fn rsassa_pkcs1_v1_5_verify(
+  key : RsaPublicKey,
+  message : Bytes,
+  signature : Bytes,
+) -> Bool {
+  try {
+    // Step 1: Get the length of the modulus in bytes
+    let k = (key.modulus.bit_length() + 7) / 8
+
+    // Step 2: Check that the length of the signature is k
+    if signature.length() != k {
+      return false
+    }
+
+    // Step 3: Convert the signature to an integer s
+    let s = BigInt::from_octets(signature)
+
+    // Step 4: Apply RSAVP1 to recover the encoded message
+    let m = rsaep_pub(key.modulus, key.publicExponent, s)
+
+    // Step 5: Convert m to encoded message EM of length k
+    let em = m.to_octets(length=k)
+
+    // Step 6: EMSA-PKCS1-v1_5 encode the message to get EM'
+    let em_prime = emsa_pkcs1_v1_5_encode(message, k)
+
+    // Step 7: Compare EM and EM'
+    em == em_prime
+  } catch {
+    _ => false
+  }
 }
 
 ///|
