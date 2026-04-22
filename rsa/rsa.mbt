@@ -189,7 +189,7 @@ pub fn generate_key_pairs(
     (x % m + m) % m
   }
 
-  for {
+  for ;; {
     let (p, q) = generate_probably_primes(nlen, e)
     let d = inverse(e, lcm(p - 1, q - 1))
     if d > BigInt::pow(2, BigInt::from_int(nlen / 2)) {
