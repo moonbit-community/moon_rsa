@@ -1,8 +1,0 @@
-{
-    "import": [
-        "moonbitlang/x/crypto",
-        "moonbitlang/core/random",
-        "moonbitlang/core/math",
-        "moonbitlang/core/env"
-    ]
-}
