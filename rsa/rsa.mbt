@@ -58,8 +58,9 @@ fn generate_probably_primes(
   if nlen < 2048 {
     raise ArgumentError("nlen must not less than 2048")
   }
-  let twoPow256 = BigInt::from_hex(
+  let twoPow256 = BigInt::from_string(
     "10000000000000000000000000000000000000000000000000000000000000000",
+    radix=16,
   )
   if e <= BigInt::from_int(65536) || e >= twoPow256 || e % 2 == 0 {
     raise ArgumentError("e must satisfy: 2^16 < e < 2^256 and e is odd.")
