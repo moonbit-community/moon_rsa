@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Rutubet/moon_rsa/rsa"
 
-import(
-  "moonbitlang/core/bigint"
-)
+import {
+  "moonbitlang/core/bigint",
+}
 
 // Values
 pub fn generate_key_pairs(Int, @bigint.BigInt) -> (RsaPublicKey, RsaPrivateKey) raise
@@ -12,14 +12,26 @@ pub fn rsaes_oaep_decrypt(RsaPrivateKey, Bytes, Bytes) -> Bytes raise
 
 pub fn rsaes_oaep_encrypt(RsaPublicKey, Bytes, Bytes) -> Bytes raise
 
+pub fn rsaes_pkcs1_v1_5_decrypt(RsaPrivateKey, Bytes) -> Bytes raise
+
+pub fn rsaes_pkcs1_v1_5_encrypt(RsaPublicKey, Bytes) -> Bytes raise
+
+pub fn rsassa_pkcs1_v1_5_sign(RsaPrivateKey, Bytes) -> Bytes raise
+
+pub fn rsassa_pkcs1_v1_5_verify(RsaPublicKey, Bytes, Bytes) -> Bool
+
 pub fn rsassa_pss_sign(RsaPrivateKey, Bytes) -> Bytes raise
 
 pub fn rsassa_pss_verify(RsaPublicKey, Bytes, Bytes) -> Bool
 
 // Errors
-pub suberror ArgumentError String
+pub suberror ArgumentError {
+  ArgumentError(String)
+}
 
-pub suberror FailedFindPrimeError String
+pub suberror FailedFindPrimeError {
+  FailedFindPrimeError(String)
+}
 
 // Types and methods
 pub struct OtherPrimeInfo {
