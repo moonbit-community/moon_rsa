@@ -328,7 +328,7 @@ pub fn rsassa_pss_sign(k : RsaPrivateKey, message : Bytes) -> Bytes raise Error 
   let first_octet = masked_db.at(0)
   let adjusted_first_octet = first_octet & ((1 << (em_bits % 8)) - 1)
   let adjusted_db = Bytes::from_array([adjusted_first_octet]) +
-    masked_db[1:].to_bytes()
+    masked_db[1:].to_owned()
 
   // Form the encoded message EM = DB || 0xBC || H'
   let em = adjusted_db +
@@ -418,7 +418,7 @@ pub fn rsassa_pss_verify(
     if db_end <= 0 {
       return false
     }
-    let db = em[:db_end].to_bytes()
+    let db = em[:db_end].to_owned()
 
     // Check if DB length is correct
     if db.length() != db_end {
@@ -439,7 +439,7 @@ pub fn rsassa_pss_verify(
     if h_prime_start >= em.length() {
       return false
     }
-    let h_prime_part = em[h_prime_start:].to_bytes()
+    let h_prime_part = em[h_prime_start:].to_owned()
 
     // Check if H' length is correct
     if h_prime_part.length() != h_len {
@@ -462,7 +462,7 @@ pub fn rsassa_pss_verify(
     let first_octet = masked_db.at(0)
     let adjusted_first_octet = first_octet & ((1 << (em_bits % 8)) - 1)
     let adjusted_db = Bytes::from_array([adjusted_first_octet]) +
-      masked_db[1:].to_bytes()
+      masked_db[1:].to_owned()
 
     // Step 10: Verify padding and extract salt
     // Reset all bits in the leftmost octet that are outside of emBits
@@ -489,7 +489,7 @@ pub fn rsassa_pss_verify(
     if salt_start < 0 || salt_end > masked_db_prime.length() {
       return false
     }
-    let extracted_salt = masked_db_prime[salt_start:salt_end].to_bytes()
+    let extracted_salt = masked_db_prime[salt_start:salt_end].to_owned()
 
     // Verify extracted salt length is correct
     if extracted_salt.length() != s_len {
@@ -697,7 +697,7 @@ pub fn rsaes_pkcs1_v1_5_decrypt(
     // Empty message case
     return Bytes::new(0)
   }
-  em[message_start:].to_bytes()
+  em[message_start:].to_owned()
 }
 
 ///|
@@ -857,8 +857,8 @@ pub fn rsaes_oaep_decrypt(
 
   // Step 5a: Split EM into masked_seed and masked_db
   // EM = 0x00 || masked_seed || masked_db
-  let masked_seed = em[1:h_len + 1].to_bytes()
-  let masked_db = em[h_len + 1:].to_bytes()
+  let masked_seed = em[1:h_len + 1].to_owned()
+  let masked_db = em[h_len + 1:].to_owned()
 
   // Step 5b: Apply MGF1 to masked_db to get seed_mask of length h_len
   let seed_mask = mgf1(masked_db, h_len.to_int64(), hash)
@@ -876,7 +876,7 @@ pub fn rsaes_oaep_decrypt(
   let l_hash = hash(label)
 
   // Step 5g: Check that the leftmost h_len octets of DB equal l_hash
-  let db_l_hash = db[0:h_len].to_bytes()
+  let db_l_hash = db[0:h_len].to_owned()
   if db_l_hash != Bytes::from_array(l_hash) {
     raise ArgumentError("Decryption error: label hash mismatch")
   }
@@ -901,7 +901,7 @@ pub fn rsaes_oaep_decrypt(
   if message_start >= db.length() {
     raise ArgumentError("Decryption error: message start out of bounds")
   }
-  let message = db[message_start:].to_bytes()
+  let message = db[message_start:].to_owned()
 
   // Step 6: Return the message
   message

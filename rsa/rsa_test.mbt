@@ -69,7 +69,7 @@ test "rsassa_pss_verify_invalid_signatures" {
     )
     let first_byte = corrupted_signature.at(0)
     corrupted_signature = Bytes::from_array([first_byte ^ 0xFF]) +
-      corrupted_signature[1:].to_bytes()
+      corrupted_signature[1:].to_owned()
     let invalid2 = @rsa.rsassa_pss_verify(
       publicKey1, original_message, corrupted_signature,
     )
@@ -327,7 +327,7 @@ test "rsaes_pkcs1_v1_5_decrypt_corrupted_ciphertext" {
   // Corrupt ciphertext by flipping a byte
   let corrupted_ciphertext = if ciphertext.length() > 0 {
     let first_byte = ciphertext.at(0)
-    Bytes::from_array([first_byte ^ 0xFF]) + ciphertext[1:].to_bytes()
+    Bytes::from_array([first_byte ^ 0xFF]) + ciphertext[1:].to_owned()
   } else {
     ciphertext
   }
@@ -422,7 +422,7 @@ test "rsassa_pkcs1_v1_5_verify_tampered_signature" {
 
   // Corrupt signature by flipping first byte
   let corrupted = Bytes::from_array([signature.at(0) ^ 0xFF]) +
-    signature[1:].to_bytes()
+    signature[1:].to_owned()
   let invalid = @rsa.rsassa_pkcs1_v1_5_verify(publicKey, message, corrupted)
   inspect(invalid, content="false")
 }
