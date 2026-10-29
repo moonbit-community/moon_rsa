@@ -1,0 +1,17 @@
+name = "Rutubet/moon_rsa"
+
+version = "0.3.0"
+
+import {
+  "moonbitlang/x@0.5.6",
+}
+
+readme = "README.md"
+
+repository = "https://github.com/moonbit-community/moon_rsa"
+
+license = "Apache-2.0"
+
+keywords = [ "RSA", "Cryptograhpic", "Algorithm" ]
+
+description = "A Moonbit implementation of RSA cryptographic algorithm, under development."
