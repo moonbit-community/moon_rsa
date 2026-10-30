@@ -293,7 +293,7 @@ pub fn rsassa_pss_sign(k : RsaPrivateKey, message : Bytes) -> Bytes raise Error 
   let salt = if s_len == 0 {
     Bytes::new(0)
   } else {
-    let r = @random.Rand::new()
+    let r = @random.Rand()
     r.bigint(s_len * 8).to_octets()
   }
   // Compute the hash of the message
@@ -551,7 +551,7 @@ pub fn rsaes_oaep_encrypt(
     message
 
   // Step 1e: Generate random seed of length h_len
-  let r = @random.Rand::new()
+  let r = @random.Rand()
   let seed = r.bigint(h_len * 8).to_octets()
 
   // Step 1f: Apply MGF1 to seed to get db_mask of length modulus_len - h_len - 1
@@ -582,7 +582,7 @@ pub fn rsaes_oaep_encrypt(
 ///|
 /// Generate random non-zero bytes for PKCS#1 v1.5 padding
 fn generate_non_zero_random_bytes(len : Int32) -> Bytes {
-  let r = @random.Rand::new()
+  let r = @random.Rand()
   let arr = FixedArray::make(len, b'\x00')
   for i = 0; i < len; i = i + 1 {
     // Generate random byte in range 1-255 (non-zero)
