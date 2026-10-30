@@ -9,7 +9,7 @@ pub suberror FailedFindPrimeError {
 }
 
 ///|
-pub fn RsaVersion::get_value(self : RsaVersion) -> Int {
+pub fn RsaVersion::get_value(self : RsaVersion) -> Int32 {
   match self {
     RsaVersion::TWO_PRIME => 0
     RsaVersion::MULTI => 1
@@ -52,7 +52,7 @@ fn abs(a : BigInt) -> BigInt {
 /// 
 /// Returns `(p, q)`
 fn generate_probably_primes(
-  nlen : Int,
+  nlen : Int32,
   e : BigInt,
 ) -> (BigInt, BigInt) raise Error {
   if nlen < 2048 {
@@ -167,7 +167,7 @@ fn lcm(a : BigInt, b : BigInt) -> BigInt {
 /// 
 /// Returns `(publicKey, privateKey)`
 pub fn generate_key_pairs(
-  nlen : Int,
+  nlen : Int32,
   e : BigInt,
 ) -> (RsaPublicKey, RsaPrivateKey) raise Error {
   /// Extended Euclidean algorithm.
@@ -194,7 +194,7 @@ pub fn generate_key_pairs(
     let d = inverse(e, lcm(p - 1, q - 1))
     if d > BigInt::pow(2, BigInt::from_int(nlen / 2)) {
       let n = p * q
-      let publicKey = RsaPublicKey::{ modulus: n, publicExponent: e }
+      let publicKey = RsaPublicKey::{ modulus: n, publicExponent: e, }
       let privateKey = RsaPrivateKey::{
         version: RsaVersion::TWO_PRIME,
         modulus: n,
@@ -581,7 +581,7 @@ pub fn rsaes_oaep_encrypt(
 
 ///|
 /// Generate random non-zero bytes for PKCS#1 v1.5 padding
-fn generate_non_zero_random_bytes(len : Int) -> Bytes {
+fn generate_non_zero_random_bytes(len : Int32) -> Bytes {
   let r = @random.Rand::new()
   let arr = FixedArray::make(len, b'\x00')
   for i = 0; i < len; i = i + 1 {
@@ -720,7 +720,7 @@ fn sha256_digest_info_prefix() -> Bytes {
 /// * `em_len` : The intended length of the encoded message
 ///
 /// Returns the encoded message EM
-fn emsa_pkcs1_v1_5_encode(message : Bytes, em_len : Int) -> Bytes raise Error {
+fn emsa_pkcs1_v1_5_encode(message : Bytes, em_len : Int32) -> Bytes raise Error {
   // Step 1: Hash the message using SHA-256
   let hash = @crypto.sha256
   let h = hash(message)

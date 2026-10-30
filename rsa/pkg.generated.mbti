@@ -6,7 +6,7 @@ import {
 }
 
 // Values
-pub fn generate_key_pairs(Int, @bigint.BigInt) -> (RsaPublicKey, RsaPrivateKey) raise
+pub fn generate_key_pairs(Int32, @bigint.BigInt) -> (RsaPublicKey, RsaPrivateKey) raise
 
 pub fn rsaes_oaep_decrypt(RsaPrivateKey, Bytes, Bytes) -> Bytes raise
 
@@ -62,9 +62,8 @@ pub enum RsaVersion {
   TWO_PRIME
   MULTI
 }
-pub fn RsaVersion::get_value(Self) -> Int
+pub fn RsaVersion::get_value(Self) -> Int32
 
 // Type aliases
 
 // Traits
-
